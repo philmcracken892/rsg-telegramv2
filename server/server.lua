@@ -30,6 +30,49 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:GetPlayers', function(sour
 end)
 
 
+RSGCore.Functions.CreateCallback('rsg-telegram:server:SearchPlayers', function(source, cb, searchTerm)
+    local src = source
+    searchTerm = string.lower(searchTerm)
+    
+   
+    local result = MySQL.query.await([[
+        SELECT citizenid, charinfo 
+        FROM players 
+        WHERE LOWER(citizenid) LIKE @search 
+        OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(charinfo, '$.firstname'))) LIKE @search
+        OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(charinfo, '$.lastname'))) LIKE @search
+        LIMIT 20
+    ]], {
+        ['@search'] = '%' .. searchTerm .. '%'
+    })
+    
+    if not result or #result == 0 then
+        cb(nil)
+        return
+    end
+    
+    local players = {}
+    
+    for i = 1, #result do
+        local charinfo = json.decode(result[i].charinfo)
+        local citizenid = result[i].citizenid
+        local fullName = charinfo.firstname .. ' ' .. charinfo.lastname
+        
+        -- Check if player is online
+        local onlinePlayer = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
+        local isOnline = onlinePlayer ~= nil
+        
+        table.insert(players, {
+            citizenid = citizenid,
+            name = fullName,
+            online = isOnline
+        })
+    end
+    
+    cb(players)
+end)
+
+
 RSGCore.Functions.CreateUseableItem('letter', function(source, item)
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
@@ -156,6 +199,7 @@ AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, se
     })
 end)
 
+
 RegisterServerEvent('rsg-telegram:server:SendMessageToOnlinePlayer')
 AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(senderID, sender, sendername, tgtid, subject, message)
     local src = source
@@ -163,7 +207,7 @@ AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(sender
 
     if RSGPlayer == nil then return end
     
-   
+    
     local targetPlayer = RSGCore.Functions.GetPlayer(tonumber(tgtid))
     if targetPlayer == nil then
         TriggerClientEvent('ox_lib:notify', src, {
@@ -200,49 +244,112 @@ AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(sender
     end
 
     local targetPlayerName = targetPlayer.PlayerData.charinfo.firstname..' '..targetPlayer.PlayerData.charinfo.lastname
+    local targetCitizenId = targetPlayer.PlayerData.citizenid
+    
+    
+    exports.oxmysql:execute('INSERT INTO telegrams (`citizenid`, `recipient`, `sender`, `sendername`, `subject`, `sentDate`, `message`) VALUES (?, ?, ?, ?, ?, ?, ?);', 
+        {targetCitizenId, targetPlayerName, sender, sendername, subject, sentDate, message})
+    
+  
+    TriggerClientEvent('ox_lib:notify', targetPlayer.PlayerData.source, {
+        title = "Post Office", 
+        description = "You have a letter from "..sendername.." waiting at the post office", 
+        type = 'info', 
+        duration = 7000 
+    })
     
    
-    local letterInfo = {
-        sender = sendername,
-        sendercid = sender,
-        recipient = targetPlayerName,
-        subject = subject,
-        message = message,
-        date = sentDate,
-        unread = true
-    }
+    TriggerClientEvent('ox_lib:notify', src, {
+        title = "Letter Sent", 
+        description = "Letter sent to "..targetPlayerName..". They can retrieve it at any post office.", 
+        type = 'success', 
+        duration = 5000 
+    })
+
+    if Config.ChargePlayer then
+        RSGPlayer.Functions.RemoveMoney('cash', cost, 'send letter')
+    end
+end)
+
+
+-- Send Message to Searched Player (online or offline - always to database)
+RegisterServerEvent('rsg-telegram:server:SendToSearchedPlayer')
+AddEventHandler('rsg-telegram:server:SendToSearchedPlayer', function(sender, sendername, citizenid, subject, message)
+    local src = source
+    local RSGPlayer = RSGCore.Functions.GetPlayer(src)
     
+    if not RSGPlayer then return end
     
-    local letterAdded = targetPlayer.Functions.AddItem('letter', 1, false, letterInfo)
+    local cost = Config.CostPerLetter
+    local cashBalance = RSGPlayer.PlayerData.money['cash']
+    local sentDate = os.date('%x')
+
+    if Config.ChargePlayer and cashBalance < cost then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = "Error", 
+            description = "You don't have enough money ($"..cost..")", 
+            type = 'error', 
+            duration = 5000 
+        })
+        return
+    end
     
-    if letterAdded then
-        TriggerClientEvent('inventory:client:ItemBox', targetPlayer.PlayerData.source, RSGCore.Shared.Items['letter'], "add", 1)
-        
-      
-        TriggerClientEvent('rsg-telegram:client:UpdateMailCount', targetPlayer.PlayerData.source)
-        
+    -- Check if sender is trying to send to themselves
+    if not Config.AllowSendToSelf and RSGPlayer.PlayerData.citizenid == citizenid then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = "Error", 
+            description = "You cannot send a letter to yourself", 
+            type = 'error', 
+            duration = 5000 
+        })
+        return
+    end
+
+    -- Get recipient info from database
+    local result = MySQL.Sync.fetchAll('SELECT * FROM players WHERE citizenid = @citizenid', {citizenid = citizenid})
+
+    if result[1] == nil then 
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = "Error", 
+            description = "Recipient not found", 
+            type = 'error', 
+            duration = 5000 
+        })
+        return 
+    end
+
+    local tFirstName = json.decode(result[1].charinfo).firstname
+    local tLastName = json.decode(result[1].charinfo).lastname
+    local tFullName = tFirstName..' '..tLastName
+
+    
+    exports.oxmysql:execute('INSERT INTO telegrams (`citizenid`, `recipient`, `sender`, `sendername`, `subject`, `sentDate`, `message`) VALUES (?, ?, ?, ?, ?, ?, ?);', 
+        {citizenid, tFullName, sender, sendername, subject, sentDate, message})
+    
+   
+    local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
+    
+    if targetPlayer then
         TriggerClientEvent('ox_lib:notify', targetPlayer.PlayerData.source, {
-            title = "Mail Received", 
-            description = "You have a letter from "..sendername, 
+            title = "Post Office", 
+            description = "You have a letter from "..sendername.." waiting at the post office", 
             type = 'info', 
             duration = 7000 
         })
         
-        
         TriggerClientEvent('ox_lib:notify', src, {
             title = "Letter Sent", 
-            description = "Letter delivered to "..targetPlayerName, 
+            description = tFullName.." is online and was notified. They can retrieve it at any post office.", 
             type = 'success', 
             duration = 5000 
         })
     else
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Delivery Failed", 
-            description = "Recipient's inventory is full", 
-            type = 'error', 
+            title = "Letter Sent", 
+            description = tFullName.." is offline. They can retrieve it at the post office when they log in.", 
+            type = 'success', 
             duration = 5000 
         })
-        return
     end
 
     if Config.ChargePlayer then
@@ -305,7 +412,7 @@ end)
 -- LETTER ITEM MANAGEMENT
 ------------------------------------------------
 
--- Mark Letter as Read
+
 RegisterServerEvent('rsg-telegram:server:MarkLetterRead')
 AddEventHandler('rsg-telegram:server:MarkLetterRead', function(slot)
     local src = source
@@ -315,14 +422,24 @@ AddEventHandler('rsg-telegram:server:MarkLetterRead', function(slot)
     
     local item = Player.Functions.GetItemBySlot(slot)
     
-    if item and item.name == 'letter' and item.info and item.info.unread then
+    if item and item.name == 'letter' and item.info then
+       
         item.info.unread = false
+        
+       
+        Player.PlayerData.items[slot] = item
         Player.Functions.SetInventory(Player.PlayerData.items)
         
+        if Config.Debug then
+            print("^3[TELEGRAM DEBUG]^7 Marked letter in slot " .. slot .. " as read for player " .. src)
+        end
         
+       
+        Wait(500)
         TriggerClientEvent('rsg-telegram:client:UpdateMailCount', src)
     end
 end)
+
 
 
 RegisterServerEvent('rsg-telegram:server:DestroyLetter')
@@ -332,11 +449,13 @@ AddEventHandler('rsg-telegram:server:DestroyLetter', function(slot)
     
     if not Player then return end
     
+   
     Player.Functions.RemoveItem('letter', 1, slot)
     TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items['letter'], "remove", 1)
     
-    
-    TriggerClientEvent('rsg-telegram:client:UpdateMailCount', src)
+    if Config.Debug then
+        print("^3[TELEGRAM DEBUG]^7 Destroyed letter in slot " .. slot .. " for player " .. src)
+    end
     
     TriggerClientEvent('ox_lib:notify', src, {
         title = "Letter Destroyed", 
@@ -344,6 +463,10 @@ AddEventHandler('rsg-telegram:server:DestroyLetter', function(slot)
         type = 'info', 
         duration = 3000 
     })
+    
+    
+    Wait(500)
+    TriggerClientEvent('rsg-telegram:client:UpdateMailCount', src)
 end)
 
 ------------------------------------------------
@@ -647,20 +770,30 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:getUnreadLetterCount', fun
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if Player ~= nil then
-        
-        local currentLetters = Player.Functions.GetItemsByName('letter')
         local unreadCount = 0
         
-        for _, letter in pairs(currentLetters) do
-            if letter.info and letter.info.unread then
-                unreadCount = unreadCount + 1
+        
+        local currentLetters = Player.Functions.GetItemsByName('letter')
+        
+        if currentLetters then
+            for _, letter in pairs(currentLetters) do
+                
+                if letter.info and letter.info.unread == true then
+                    unreadCount = unreadCount + 1
+                end
             end
         end
         
        
-        local result = MySQL.prepare.await('SELECT COUNT(*) FROM telegrams WHERE citizenid = ? AND (status = ? OR birdstatus = ?)', {Player.PlayerData.citizenid, 0, 0})
+        local dbCount = MySQL.prepare.await('SELECT COUNT(*) FROM telegrams WHERE citizenid = ? AND (status = ? OR birdstatus = ?)', 
+            {Player.PlayerData.citizenid, 0, 0})
         
-        local totalUnread = unreadCount + (result or 0)
+        local totalUnread = unreadCount + (dbCount or 0)
+        
+        if Config.Debug then
+            print("^3[TELEGRAM DEBUG]^7 Player " .. src .. " has " .. unreadCount .. " unread letters in inventory and " .. (dbCount or 0) .. " in post office. Total: " .. totalUnread)
+        end
+        
         cb(totalUnread)
     else
         cb(0)
@@ -672,20 +805,24 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:getTelegramsAmount', funct
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if Player ~= nil then
-        
-        local currentLetters = Player.Functions.GetItemsByName('letter')
         local unreadCount = 0
         
-        for _, letter in pairs(currentLetters) do
-            if letter.info and letter.info.unread then
-                unreadCount = unreadCount + 1
+       
+        local currentLetters = Player.Functions.GetItemsByName('letter')
+        
+        if currentLetters then
+            for _, letter in pairs(currentLetters) do
+                if letter.info and letter.info.unread == true then
+                    unreadCount = unreadCount + 1
+                end
             end
         end
         
         
-        local result = MySQL.prepare.await('SELECT COUNT(*) FROM telegrams WHERE citizenid = ? AND (status = ? OR birdstatus = ?)', {Player.PlayerData.citizenid, 0, 0})
+        local dbCount = MySQL.prepare.await('SELECT COUNT(*) FROM telegrams WHERE citizenid = ? AND (status = ? OR birdstatus = ?)', 
+            {Player.PlayerData.citizenid, 0, 0})
         
-        local totalUnread = unreadCount + (result or 0)
+        local totalUnread = unreadCount + (dbCount or 0)
         cb(totalUnread)
     else
         cb(0)
