@@ -19,6 +19,20 @@ Config.BirdAttach = {
     },
 }
 
+------------------------------------------------
+-- LANGUAGE SETTINGS
+------------------------------------------------
+Config.DefaultLocale = 'en' -- Default language: en, de, fr, it, es, el
+Config.AllowPlayerLanguageChange = false -- Allow players to change their own language
+Config.AvailableLanguages = {
+    { code = 'en', label = 'English' },
+    { code = 'de', label = 'Deutsch (German)' },
+    { code = 'fr', label = 'Français (French)' },
+    { code = 'it', label = 'Italiano (Italian)' },
+    { code = 'es', label = 'Español (Spanish)' },
+    { code = 'el', label = 'Ελληνικά (Greek)' }
+}
+
 -- General Settings
 Config.Debug           = false -- Dnable/disable debug functions
 Config.AllowSendToSelf = true -- A debug functions to allow sending letter to ourself (testing purpose)

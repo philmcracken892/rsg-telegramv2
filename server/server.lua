@@ -29,12 +29,10 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:GetPlayers', function(sour
     cb(players)
 end)
 
-
 RSGCore.Functions.CreateCallback('rsg-telegram:server:SearchPlayers', function(source, cb, searchTerm)
     local src = source
     searchTerm = string.lower(searchTerm)
     
-   
     local result = MySQL.query.await([[
         SELECT citizenid, charinfo 
         FROM players 
@@ -72,26 +70,23 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:SearchPlayers', function(s
     cb(players)
 end)
 
-
 RSGCore.Functions.CreateUseableItem('letter', function(source, item)
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
     
     if not Player then return end
     
-   
     local letterData = item.info or {}
     
     if not letterData.sender or not letterData.message then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "This letter appears to be blank or damaged", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_letter_error_blank"), 
             type = 'error', 
             duration = 5000 
         })
         return
     end
-    
     
     TriggerClientEvent('rsg-telegram:client:ReadLetter', src, letterData, item.slot)
 end)
@@ -104,13 +99,12 @@ end)
 RegisterNetEvent('rsg-telegram:server:DeliverySuccess')
 AddEventHandler('rsg-telegram:server:DeliverySuccess', function(sID, tPName)
     TriggerClientEvent('ox_lib:notify', sID, {
-        title = "Letter Delivered", 
-        description = 'Your letter was delivered to '..tPName, 
+        title = locale("sv_title_38"), 
+        description = locale('sv_letter_delivered') .. ' ' .. tPName, 
         type = 'success', 
         duration = 5000 
     })
 end)
-
 
 RegisterServerEvent('rsg-telegram:server:SendMessage')
 AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, sendername, tgtid, subject, message)
@@ -119,12 +113,11 @@ AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, se
 
     if RSGPlayer == nil then return end
     
-    
     local targetPlayer = RSGCore.Functions.GetPlayer(tonumber(tgtid))
     if targetPlayer == nil then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "Player is no longer available", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_player_unavailable"), 
             type = 'error', 
             duration = 5000 
         })
@@ -133,8 +126,8 @@ AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, se
 
     if not Config.AllowSendToSelf and RSGPlayer.PlayerData.source == tonumber(tgtid) then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You cannot send a letter to yourself", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_send_to_self"), 
             type = 'error', 
             duration = 5000 
         })
@@ -147,20 +140,19 @@ AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, se
 
     if Config.ChargePlayer and cashBalance < cost then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You don't have enough money ($"..cost..")", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_insufficient_balance") .. " ($"..cost..")", 
             type = 'error', 
             duration = 5000 
         })
         return
     end
 
-    
     local hasBirdPost = RSGPlayer.Functions.GetItemByName('birdpost')
     if not hasBirdPost or hasBirdPost.amount < 1 then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You don't have a bird post!", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_no_bird_post"), 
             type = 'error', 
             duration = 5000 
         })
@@ -169,7 +161,6 @@ AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, se
 
     local targetPlayerName = targetPlayer.PlayerData.charinfo.firstname..' '..targetPlayer.PlayerData.charinfo.lastname
     
-   
     local letterInfo = {
         sender = sendername,
         sendercid = sender,
@@ -177,13 +168,11 @@ AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, se
         subject = subject,
         message = message,
         date = sentDate,
-        unread = true  -- Mark as unread
+        unread = true
     }
-    
     
     TriggerClientEvent('rsg-telegram:client:ReceiveMessage', targetPlayer.PlayerData.source, senderID, targetPlayerName, letterInfo)
 
-    
     RSGPlayer.Functions.RemoveItem('birdpost', 1)
     TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items['birdpost'], "remove", 1)
     
@@ -192,13 +181,12 @@ AddEventHandler('rsg-telegram:server:SendMessage', function(senderID, sender, se
     end
     
     TriggerClientEvent('ox_lib:notify', src, {
-        title = "Success", 
-        description = "Bird post sent to "..targetPlayerName, 
+        title = locale("sv_title_38"), 
+        description = locale("sv_bird_post_sent") .. " " .. targetPlayerName, 
         type = 'success', 
         duration = 5000 
     })
 end)
-
 
 RegisterServerEvent('rsg-telegram:server:SendMessageToOnlinePlayer')
 AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(senderID, sender, sendername, tgtid, subject, message)
@@ -207,12 +195,11 @@ AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(sender
 
     if RSGPlayer == nil then return end
     
-    
     local targetPlayer = RSGCore.Functions.GetPlayer(tonumber(tgtid))
     if targetPlayer == nil then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "Player is no longer available", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_player_unavailable"), 
             type = 'error', 
             duration = 5000 
         })
@@ -221,8 +208,8 @@ AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(sender
 
     if not Config.AllowSendToSelf and RSGPlayer.PlayerData.source == tonumber(tgtid) then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You cannot send a letter to yourself", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_send_to_self"), 
             type = 'error', 
             duration = 5000 
         })
@@ -235,8 +222,8 @@ AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(sender
 
     if Config.ChargePlayer and cashBalance < cost then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You don't have enough money ($"..cost..")", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_insufficient_balance") .. " ($"..cost..")", 
             type = 'error', 
             duration = 5000 
         })
@@ -246,22 +233,19 @@ AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(sender
     local targetPlayerName = targetPlayer.PlayerData.charinfo.firstname..' '..targetPlayer.PlayerData.charinfo.lastname
     local targetCitizenId = targetPlayer.PlayerData.citizenid
     
-    
     exports.oxmysql:execute('INSERT INTO telegrams (`citizenid`, `recipient`, `sender`, `sendername`, `subject`, `sentDate`, `message`) VALUES (?, ?, ?, ?, ?, ?, ?);', 
         {targetCitizenId, targetPlayerName, sender, sendername, subject, sentDate, message})
     
-  
     TriggerClientEvent('ox_lib:notify', targetPlayer.PlayerData.source, {
-        title = "Post Office", 
-        description = "You have a letter from "..sendername.." waiting at the post office", 
+        title = locale("cl_title_03"), 
+        description = string.format(locale("sv_post_office_notify"), sendername), 
         type = 'info', 
         duration = 7000 
     })
     
-   
     TriggerClientEvent('ox_lib:notify', src, {
-        title = "Letter Sent", 
-        description = "Letter sent to "..targetPlayerName..". They can retrieve it at any post office.", 
+        title = locale("sv_title_38"), 
+        description = locale("sv_letter_sent") .. " " .. targetPlayerName .. ". " .. locale("sv_letter_sent_desc"), 
         type = 'success', 
         duration = 5000 
     })
@@ -270,7 +254,6 @@ AddEventHandler('rsg-telegram:server:SendMessageToOnlinePlayer', function(sender
         RSGPlayer.Functions.RemoveMoney('cash', cost, 'send letter')
     end
 end)
-
 
 -- Send Message to Searched Player (online or offline - always to database)
 RegisterServerEvent('rsg-telegram:server:SendToSearchedPlayer')
@@ -286,32 +269,30 @@ AddEventHandler('rsg-telegram:server:SendToSearchedPlayer', function(sender, sen
 
     if Config.ChargePlayer and cashBalance < cost then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You don't have enough money ($"..cost..")", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_insufficient_balance") .. " ($"..cost..")", 
             type = 'error', 
             duration = 5000 
         })
         return
     end
     
-    -- Check if sender is trying to send to themselves
     if not Config.AllowSendToSelf and RSGPlayer.PlayerData.citizenid == citizenid then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You cannot send a letter to yourself", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_send_to_self"), 
             type = 'error', 
             duration = 5000 
         })
         return
     end
 
-    -- Get recipient info from database
     local result = MySQL.Sync.fetchAll('SELECT * FROM players WHERE citizenid = @citizenid', {citizenid = citizenid})
 
     if result[1] == nil then 
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "Recipient not found", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_recipient_not_found"), 
             type = 'error', 
             duration = 5000 
         })
@@ -322,31 +303,29 @@ AddEventHandler('rsg-telegram:server:SendToSearchedPlayer', function(sender, sen
     local tLastName = json.decode(result[1].charinfo).lastname
     local tFullName = tFirstName..' '..tLastName
 
-    
     exports.oxmysql:execute('INSERT INTO telegrams (`citizenid`, `recipient`, `sender`, `sendername`, `subject`, `sentDate`, `message`) VALUES (?, ?, ?, ?, ?, ?, ?);', 
         {citizenid, tFullName, sender, sendername, subject, sentDate, message})
     
-   
     local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
     
     if targetPlayer then
         TriggerClientEvent('ox_lib:notify', targetPlayer.PlayerData.source, {
-            title = "Post Office", 
-            description = "You have a letter from "..sendername.." waiting at the post office", 
+            title = locale("cl_title_03"), 
+            description = string.format(locale("sv_post_office_notify"), sendername), 
             type = 'info', 
             duration = 7000 
         })
         
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Letter Sent", 
-            description = tFullName.." is online and was notified. They can retrieve it at any post office.", 
+            title = locale("sv_title_38"), 
+            description = tFullName .. " " .. locale("sv_letter_sent_online"), 
             type = 'success', 
             duration = 5000 
         })
     else
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Letter Sent", 
-            description = tFullName.." is offline. They can retrieve it at the post office when they log in.", 
+            title = locale("sv_title_38"), 
+            description = tFullName .. " " .. locale("sv_letter_sent_offline"), 
             type = 'success', 
             duration = 5000 
         })
@@ -357,7 +336,6 @@ AddEventHandler('rsg-telegram:server:SendToSearchedPlayer', function(sender, sen
     end
 end)
 
-
 RegisterServerEvent('rsg-telegram:server:GiveLetter')
 AddEventHandler('rsg-telegram:server:GiveLetter', function(letterData)
     local src = source
@@ -365,36 +343,32 @@ AddEventHandler('rsg-telegram:server:GiveLetter', function(letterData)
     
     if not Player then return end
     
-    
     local letterAdded = Player.Functions.AddItem('letter', 1, false, letterData)
     
     if letterAdded then
         TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items['letter'], "add", 1)
         
-        
         TriggerClientEvent('rsg-telegram:client:UpdateMailCount', src)
         
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Letter Received", 
-            description = "You received a letter from " .. (letterData.sender or "Unknown"), 
+            title = locale("sv_title_38"), 
+            description = locale("sv_letter_received") .. " " .. (letterData.sender or "Unknown") .. ". " .. locale("sv_check_inventory"),
             type = 'success', 
             duration = 7000 
         })
     else
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Delivery Failed", 
-            description = "Your inventory is full! Letter will be at post office.", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_inventory_full"), 
             type = 'error', 
             duration = 7000 
         })
-        
         
         local citizenid = Player.PlayerData.citizenid
         exports.oxmysql:execute('INSERT INTO telegrams (`citizenid`, `recipient`, `sender`, `sendername`, `subject`, `sentDate`, `message`) VALUES (?, ?, ?, ?, ?, ?, ?)',
             {citizenid, letterData.recipient, letterData.sendercid, letterData.sender, letterData.subject, letterData.date, letterData.message})
     end
 end)
-
 
 RegisterServerEvent('rsg-telegram:server:SaveFailedDelivery')
 AddEventHandler('rsg-telegram:server:SaveFailedDelivery', function(letterData)
@@ -412,7 +386,6 @@ end)
 -- LETTER ITEM MANAGEMENT
 ------------------------------------------------
 
-
 RegisterServerEvent('rsg-telegram:server:MarkLetterRead')
 AddEventHandler('rsg-telegram:server:MarkLetterRead', function(slot)
     local src = source
@@ -423,10 +396,8 @@ AddEventHandler('rsg-telegram:server:MarkLetterRead', function(slot)
     local item = Player.Functions.GetItemBySlot(slot)
     
     if item and item.name == 'letter' and item.info then
-       
         item.info.unread = false
         
-       
         Player.PlayerData.items[slot] = item
         Player.Functions.SetInventory(Player.PlayerData.items)
         
@@ -434,13 +405,10 @@ AddEventHandler('rsg-telegram:server:MarkLetterRead', function(slot)
             print("^3[TELEGRAM DEBUG]^7 Marked letter in slot " .. slot .. " as read for player " .. src)
         end
         
-       
         Wait(500)
         TriggerClientEvent('rsg-telegram:client:UpdateMailCount', src)
     end
 end)
-
-
 
 RegisterServerEvent('rsg-telegram:server:DestroyLetter')
 AddEventHandler('rsg-telegram:server:DestroyLetter', function(slot)
@@ -449,7 +417,6 @@ AddEventHandler('rsg-telegram:server:DestroyLetter', function(slot)
     
     if not Player then return end
     
-   
     Player.Functions.RemoveItem('letter', 1, slot)
     TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items['letter'], "remove", 1)
     
@@ -458,12 +425,11 @@ AddEventHandler('rsg-telegram:server:DestroyLetter', function(slot)
     end
     
     TriggerClientEvent('ox_lib:notify', src, {
-        title = "Letter Destroyed", 
-        description = "The letter has been burned", 
+        title = locale("sv_title_38"), 
+        description = locale("sv_letter_destroyed"), 
         type = 'info', 
         duration = 3000 
     })
-    
     
     Wait(500)
     TriggerClientEvent('rsg-telegram:client:UpdateMailCount', src)
@@ -473,7 +439,6 @@ end)
 -- POST OFFICE MESSAGES
 ------------------------------------------------
 
--- Post Office messages (for address book and offline players)
 RegisterServerEvent('rsg-telegram:server:SendMessagePostOffice')
 AddEventHandler('rsg-telegram:server:SendMessagePostOffice', function(sender, sendername, citizenid, subject, message)
     local src = source
@@ -484,8 +449,8 @@ AddEventHandler('rsg-telegram:server:SendMessagePostOffice', function(sender, se
 
     if Config.ChargePlayer and cashBalance < cost then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "You don't have enough money ($"..cost..")", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_insufficient_balance") .. " ($"..cost..")", 
             type = 'error', 
             duration = 5000 
         })
@@ -496,8 +461,8 @@ AddEventHandler('rsg-telegram:server:SendMessagePostOffice', function(sender, se
 
     if result[1] == nil then 
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "Recipient not found", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_recipient_not_found"), 
             type = 'error', 
             duration = 5000 
         })
@@ -508,11 +473,9 @@ AddEventHandler('rsg-telegram:server:SendMessagePostOffice', function(sender, se
     local tLastName = json.decode(result[1].charinfo).lastname
     local tFullName = tFirstName..' '..tLastName
 
-   
     local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
     
     if targetPlayer then
-        
         local letterInfo = {
             sender = sendername,
             sendercid = sender,
@@ -528,35 +491,32 @@ AddEventHandler('rsg-telegram:server:SendMessagePostOffice', function(sender, se
         if letterAdded then
             TriggerClientEvent('inventory:client:ItemBox', targetPlayer.PlayerData.source, RSGCore.Shared.Items['letter'], "add", 1)
             
-            
             TriggerClientEvent('rsg-telegram:client:UpdateMailCount', targetPlayer.PlayerData.source)
             
             TriggerClientEvent('ox_lib:notify', targetPlayer.PlayerData.source, {
-                title = "Mail Received", 
-                description = "You have a letter from "..sendername, 
+                title = locale("cl_title_03"), 
+                description = locale("sv_letter_received") .. " " .. sendername, 
                 type = 'info', 
                 duration = 7000 
             })
         else
-           
             exports.oxmysql:execute('INSERT INTO telegrams (`citizenid`, `recipient`, `sender`, `sendername`, `subject`, `sentDate`, `message`) VALUES (?, ?, ?, ?, ?, ?, ?);', 
                 {citizenid, tFullName, sender, sendername, subject, sentDate, message})
             TriggerClientEvent('ox_lib:notify', src, {
-                title = "Notice", 
-                description = "Recipient's inventory full. Letter saved at post office.", 
+                title = locale("cl_title_13"), 
+                description = locale("sv_recipient_inventory_full"), 
                 type = 'info', 
                 duration = 7000 
             })
         end
     else
-        
         exports.oxmysql:execute('INSERT INTO telegrams (`citizenid`, `recipient`, `sender`, `sendername`, `subject`, `sentDate`, `message`) VALUES (?, ?, ?, ?, ?, ?, ?);', 
             {citizenid, tFullName, sender, sendername, subject, sentDate, message})
     end
 
     TriggerClientEvent('ox_lib:notify', src, {
-        title = "Letter Sent", 
-        description = "Message sent to "..tFullName.." via post office", 
+        title = locale("sv_title_38"), 
+        description = string.format(locale("sv_message_sent_post"), tFullName), 
         type = 'success', 
         duration = 5000 
     })
@@ -565,7 +525,6 @@ AddEventHandler('rsg-telegram:server:SendMessagePostOffice', function(sender, se
         RSGPlayer.Functions.RemoveMoney('cash', cost, 'send telegram')
     end
 end)
-
 
 RegisterServerEvent('rsg-telegram:server:CheckInbox')
 AddEventHandler('rsg-telegram:server:CheckInbox', function()
@@ -583,7 +542,6 @@ AddEventHandler('rsg-telegram:server:CheckInbox', function()
     end)
 end)
 
-
 RegisterServerEvent('rsg-telegram:server:ClaimLetter')
 AddEventHandler('rsg-telegram:server:ClaimLetter', function(messageId)
     local src = source
@@ -595,8 +553,8 @@ AddEventHandler('rsg-telegram:server:ClaimLetter', function(messageId)
     
     if not result[1] then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "Message not found", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_message_not_found"), 
             type = 'error', 
             duration = 5000 
         })
@@ -604,7 +562,6 @@ AddEventHandler('rsg-telegram:server:ClaimLetter', function(messageId)
     end
     
     local msg = result[1]
-    
     
     local letterInfo = {
         sender = msg.sendername,
@@ -619,34 +576,36 @@ AddEventHandler('rsg-telegram:server:ClaimLetter', function(messageId)
     local letterAdded = Player.Functions.AddItem('letter', 1, false, letterInfo)
     
     if letterAdded then
-       
         MySQL.Async.execute('DELETE FROM telegrams WHERE id = @id', {['@id'] = messageId})
         
         TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items['letter'], "add", 1)
         
-        
         TriggerClientEvent('rsg-telegram:client:UpdateMailCount', src)
         
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Letter Claimed", 
-            description = "The letter has been added to your inventory", 
+            title = locale("sv_title_38"), 
+            description = locale("sv_letter_claimed"), 
             type = 'success', 
             duration = 5000 
         })
         
-        
+        -- FIX: Changed from TriggerServerEvent to triggering CheckInbox directly
         Wait(500)
-        TriggerServerEvent('rsg-telegram:server:CheckInbox')
+        local citizenid = Player.PlayerData.citizenid
+        exports.oxmysql:execute('SELECT * FROM telegrams WHERE citizenid = ? AND (birdstatus = 0 OR birdstatus = 1) ORDER BY id DESC',{citizenid}, function(result)
+            local res = {}
+            res['list'] = result or {}
+            TriggerClientEvent('rsg-telegram:client:InboxList', src, res)
+        end)
     else
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Error", 
-            description = "Your inventory is full", 
+            title = locale("sv_title_39"), 
+            description = locale("sv_inventory_full_claim"), 
             type = 'error', 
             duration = 5000 
         })
     end
 end)
-
 
 RegisterServerEvent('rsg-telegram:server:DeleteMessage')
 AddEventHandler('rsg-telegram:server:DeleteMessage', function(tid, silent)
@@ -658,8 +617,8 @@ AddEventHandler('rsg-telegram:server:DeleteMessage', function(tid, silent)
     if result[1] == nil then
         if not silent then
             TriggerClientEvent('ox_lib:notify', src, {
-                title = "Error", 
-                description = "Message not found", 
+                title = locale("sv_title_39"), 
+                description = locale("sv_message_not_found"), 
                 type = 'error', 
                 duration = 5000 
             })
@@ -671,13 +630,22 @@ AddEventHandler('rsg-telegram:server:DeleteMessage', function(tid, silent)
 
     if not silent then
         TriggerClientEvent('ox_lib:notify', src, {
-            title = "Success", 
-            description = "Message deleted from post office", 
+            title = locale("sv_title_38"), 
+            description = locale("sv_delete_success"), 
             type = 'success', 
             duration = 3000 
         })
+        -- FIX: Changed from TriggerServerEvent to triggering CheckInbox directly
         Wait(500)
-        TriggerServerEvent('rsg-telegram:server:CheckInbox')
+        local Player = RSGCore.Functions.GetPlayer(src)
+        if Player then
+            local citizenid = Player.PlayerData.citizenid
+            exports.oxmysql:execute('SELECT * FROM telegrams WHERE citizenid = ? AND (birdstatus = 0 OR birdstatus = 1) ORDER BY id DESC',{citizenid}, function(result)
+                local res = {}
+                res['list'] = result or {}
+                TriggerClientEvent('rsg-telegram:client:InboxList', src, res)
+            end)
+        end
     end
 end)
 
@@ -692,8 +660,8 @@ AddEventHandler('rsg-telegram:server:SavePerson', function(name, cid)
     while xPlayer == nil do Wait(0) end
     exports.oxmysql:execute('INSERT INTO address_book (`citizenid`, `name`, `owner`) VALUES (?, ?, ?);', {cid, name, xPlayer.PlayerData.citizenid})
     TriggerClientEvent('ox_lib:notify', src, {
-        title = "Success", 
-        description = "Contact added to address book", 
+        title = locale("sv_title_38"), 
+        description = locale("sv_contact_added"), 
         type = 'success', 
         duration = 5000 
     })
@@ -709,18 +677,66 @@ AddEventHandler('rsg-telegram:server:RemovePerson', function(cid)
         ['citizenid'] = cid
     })
     TriggerClientEvent('ox_lib:notify', src, {
-        title = "Success", 
-        description = "Contact removed", 
+        title = locale("sv_title_38"), 
+        description = locale("sv_contact_removed"), 
         type = 'success', 
         duration = 5000 
     })
 end)
 
 ------------------------------------------------
+-- LANGUAGE SYSTEM
+------------------------------------------------
+
+RegisterServerEvent('rsg-telegram:server:setLanguage')
+AddEventHandler('rsg-telegram:server:setLanguage', function(lang)
+    local src = source
+    
+    if not Config.AllowPlayerLanguageChange then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = "Error",
+            description = "Language changing is disabled",
+            type = 'error',
+            duration = 5000
+        })
+        return
+    end
+    
+    -- Validate language exists
+    local validLang = false
+    for i = 1, #Config.AvailableLanguages do
+        if Config.AvailableLanguages[i].code == lang then
+            validLang = true
+            break
+        end
+    end
+    
+    if not validLang then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = "Error",
+            description = "Invalid language code",
+            type = 'error',
+            duration = 5000
+        })
+        return
+    end
+    
+    TriggerClientEvent('rsg-telegram:client:changeLanguage', src, lang)
+end)
+
+------------------------------------------------
 -- COMMANDS
 ------------------------------------------------
 
-RSGCore.Commands.Add('addressbook', "Open Address Book", {}, false, function(source)
+-- Language command
+if Config.AllowPlayerLanguageChange then
+    RSGCore.Commands.Add('language', 'Change telegram language', {}, false, function(source)
+        local src = source
+        TriggerClientEvent('rsg-telegram:client:openLanguageMenu', src)
+    end)
+end
+
+RSGCore.Commands.Add('addressbook', locale("sv_command"), {}, false, function(source)
     local src = source
     TriggerClientEvent('rsg-telegram:client:OpenAddressbook', src)
 end)
@@ -729,7 +745,6 @@ end)
 -- CALLBACKS
 ------------------------------------------------
 
--- Get Online Players (for sending bird post)
 RSGCore.Functions.CreateCallback('rsg-telegram:server:GetPlayers', function(source, cb)
     local players = {}
     
@@ -750,7 +765,6 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:GetPlayers', function(sour
     cb(players)
 end)
 
-
 RSGCore.Functions.CreateCallback('rsg-telegram:server:GetPlayersPostOffice', function(source, cb)
     local src = source
     local xPlayer = RSGCore.Functions.GetPlayer(src)
@@ -765,26 +779,22 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:GetPlayersPostOffice', fun
     end)
 end)
 
-
 RSGCore.Functions.CreateCallback('rsg-telegram:server:getUnreadLetterCount', function(source, cb)
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if Player ~= nil then
         local unreadCount = 0
         
-        
         local currentLetters = Player.Functions.GetItemsByName('letter')
         
         if currentLetters then
             for _, letter in pairs(currentLetters) do
-                
                 if letter.info and letter.info.unread == true then
                     unreadCount = unreadCount + 1
                 end
             end
         end
         
-       
         local dbCount = MySQL.prepare.await('SELECT COUNT(*) FROM telegrams WHERE citizenid = ? AND (status = ? OR birdstatus = ?)', 
             {Player.PlayerData.citizenid, 0, 0})
         
@@ -800,14 +810,12 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:getUnreadLetterCount', fun
     end
 end)
 
-
 RSGCore.Functions.CreateCallback('rsg-telegram:server:getTelegramsAmount', function(source, cb)
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if Player ~= nil then
         local unreadCount = 0
         
-       
         local currentLetters = Player.Functions.GetItemsByName('letter')
         
         if currentLetters then
@@ -817,7 +825,6 @@ RSGCore.Functions.CreateCallback('rsg-telegram:server:getTelegramsAmount', funct
                 end
             end
         end
-        
         
         local dbCount = MySQL.prepare.await('SELECT COUNT(*) FROM telegrams WHERE citizenid = ? AND (status = ? OR birdstatus = ?)', 
             {Player.PlayerData.citizenid, 0, 0})

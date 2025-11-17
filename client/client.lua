@@ -23,10 +23,74 @@ local cachedPlayers = nil
 local freezedPlayer = false
 local currentMessageId = nil
 
+-- Set locale from config or player preference
+CreateThread(function()
+    Wait(1000) -- Wait for player to be ready
+    
+    local savedLocale = GetResourceKvpString('telegram_language')
+    
+    if savedLocale and savedLocale ~= '' then
+        lib.setLocale(savedLocale)
+        if Config.Debug then
+            print('^3[TELEGRAM]^7 Loaded saved language: ' .. savedLocale)
+        end
+    else
+        lib.setLocale(Config.DefaultLocale)
+        if Config.Debug then
+            print('^3[TELEGRAM]^7 Using default language: ' .. Config.DefaultLocale)
+        end
+    end
+end)
+
+-- Language change event
+RegisterNetEvent('rsg-telegram:client:changeLanguage', function(lang)
+    lib.setLocale(lang)
+    SetResourceKvp('telegram_language', lang)
+    
+    lib.notify({
+        title = "Language Changed",
+        description = "Language set to: " .. lang,
+        type = 'success',
+        duration = 3000
+    })
+end)
+
+-- Language menu
+RegisterNetEvent('rsg-telegram:client:openLanguageMenu', function()
+    if not Config.AllowPlayerLanguageChange then
+        lib.notify({
+            title = "Error",
+            description = "Language changing is disabled by the server",
+            type = 'error',
+            duration = 5000
+        })
+        return
+    end
+    
+    local languageOptions = {}
+    
+    for i = 1, #Config.AvailableLanguages do
+        local lang = Config.AvailableLanguages[i]
+        table.insert(languageOptions, {
+            title = lang.label,
+            description = "Switch to " .. lang.label,
+            icon = 'fa-solid fa-language',
+            onSelect = function()
+                TriggerServerEvent('rsg-telegram:server:setLanguage', lang.code)
+            end
+        })
+    end
+    
+    lib.registerContext({
+        id = 'language_menu',
+        title = 'Choose Language',
+        options = languageOptions
+    })
+    lib.showContext('language_menu')
+end)
 
 local function GetBirdAttachConfig()
     local birdModel = Config.BirdModel
-    
     
     if not Config.BirdAttach[birdModel] then
         print("^1[TELEGRAM ERROR]^7 Bird model '" .. birdModel .. "' not found in Config.BirdAttach! Using A_C_Eagle_01 as fallback.")
@@ -39,20 +103,17 @@ local function GetBirdAttachConfig()
     return Attach
 end
 
-
 local function UpdateMailCount()
     RSGCore.Functions.TriggerCallback('rsg-telegram:server:getUnreadLetterCount', function(count)
         LocalPlayer.state:set('telegramUnreadMessages', count or 0, true)
     end)
 end
 
-
 RegisterNetEvent('rsg-telegram:client:UpdateMailCount')
 AddEventHandler('rsg-telegram:client:UpdateMailCount', function()
     UpdateMailCount()
 end)
 
----@deprecated use state LocalPlayer.state.telegramIsBirdPostApproaching
 exports('IsBirdPostApproaching', function()
     return LocalPlayer.state.telegramIsBirdPostApproaching
 end)
@@ -61,9 +122,7 @@ CreateThread(function()
     LocalPlayer.state.telegramIsBirdPostApproaching = false
     repeat Wait(100) until LocalPlayer.state.isLoggedIn
 
-  
     UpdateMailCount()
-    
     
     CreateThread(function()
         while true do
@@ -89,7 +148,6 @@ local BirdPrompt = function()
         PromptRegisterEnd(birdPrompt)
     end)
 end
-
 
 function TaskFlyAway(ped, ped2)
     return Citizen.InvokeNative(0xE86A537B5A3C297C, ped, ped2)
@@ -134,13 +192,12 @@ RegisterNetEvent('rsg-telegram:client:TelegramMenu', function()
             args = {}
         },
         {
-            title = "Send Letter",
+            title = locale("cl_title_05"),
             icon = "fa-solid fa-pen-to-square",
-            description = "Choose how to send your letter",
+            description = locale("cl_title_06"),
             event = "rsg-telegram:client:ChooseSendMethod",
             args = {}
         },
-        
     }
     lib.registerContext({
         id = "telegram_menu",
@@ -154,43 +211,41 @@ end)
 RegisterNetEvent('rsg-telegram:client:ChooseSendMethod', function()
     local SendMethodMenu = {
         {
-            title = "Send to Online Players",
+            title = locale("cl_send_online"),
             icon = "fa-solid fa-envelope",
-            description = "Send to online players - stored at post office for retrieval",
+            description = locale("cl_send_online_desc"),
             event = "rsg-telegram:client:SendToOnlinePlayersFromPostOffice",
             args = {}
         },
         {
-            title = "Send to Any Player",
+            title = locale("cl_send_any"),
             icon = "fa-solid fa-search",
-            description = "Search for any player - letter stored at post office",
+            description = locale("cl_send_any_desc"),
             event = "rsg-telegram:client:SendToAnyPlayer",
             args = {}
         },
         {
-            title = "Send to Address Book",
+            title = locale("cl_send_addressbook"),
             icon = "fa-solid fa-address-book",
-            description = "Send to saved contacts - stored at post office",
+            description = locale("cl_send_addressbook_desc"),
             event = "rsg-telegram:client:WriteMessagePostOffice",
             args = {}
         },
         {
-            title = "Back",
+            title = locale("cl_back"),
             icon = "fa-solid fa-arrow-left",
-            description = "Return to main menu",
+            description = locale("cl_back_desc"),
             event = "rsg-telegram:client:TelegramMenu",
             args = {}
         }
     }
     lib.registerContext({
         id = "send_method_menu",
-        title = "Choose Sending Method",
+        title = locale("cl_choose_method"),
         options = SendMethodMenu
     })
     lib.showContext("send_method_menu")
 end)
-
-
 
 RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayersFromPostOffice', function()
     RSGCore.Functions.TriggerCallback('rsg-telegram:server:GetPlayers', function(players)
@@ -204,29 +259,29 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayersFromPostOffice', functi
                 option[#option + 1] = content
             end
 
-            local sendButton = "Send Letter (Free)"
+            local sendButton = locale("cl_send_button_free")
 
             if Config.ChargePlayer then
                 local lPrice = tonumber(Config.CostPerLetter)
-                sendButton = 'Send Letter ($'..lPrice..')'
+                sendButton = string.format(locale('cl_send_button_paid'), lPrice)
             end
 
-            local input = lib.inputDialog('Send Letter to Online Player', {
-                { type = 'select', options = option, required = true, label = 'Recipient' },
-                { type = 'input', label = 'Subject', required = true },
-                { type = 'textarea', label = 'Message', required = true, autosize = true },
+            local input = lib.inputDialog(locale('cl_send_message_header'), {
+                { type = 'select', options = option, required = true, label = locale('cl_recipient') },
+                { type = 'input', label = locale("cl_title_08"), required = true },
+                { type = 'textarea', label = locale("cl_title_09"), required = true, autosize = true },
             })
             
             if not input then return end
 
-            local recipient = input[1]  -- server ID
+            local recipient = input[1]
             local subject = input[2]
             local message = input[3]
 
             if recipient and subject and message then
                 local alert = lib.alertDialog({
                     header = sendButton,
-                    content = "Send this letter via post office?\n\nThe recipient will receive it instantly.",
+                    content = locale("cl_send_confirm_bird"),
                     centered = true,
                     cancel = true
                 })
@@ -238,7 +293,6 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayersFromPostOffice', functi
                     local senderfullname = playerData.charinfo.firstname..' '..playerData.charinfo.lastname
                     local sendertelegram = playerData.citizenid
                     
-                    -- Send directly via post office (no bird)
                     TriggerServerEvent('rsg-telegram:server:SendMessageToOnlinePlayer', 
                         senderID, 
                         sendertelegram, 
@@ -250,18 +304,18 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayersFromPostOffice', functi
                 end
             end
         else
-            lib.notify({ title = "Error", description = "No online players found", type = 'error', duration = 7000 })
+            lib.notify({ title = locale("cl_title_11"), description = locale("cl_no_results_desc"), type = 'error', duration = 7000 })
         end
     end)
 end)
 
 -- Send to Any Player (search database for online/offline players)
 RegisterNetEvent('rsg-telegram:client:SendToAnyPlayer', function()
-    local input = lib.inputDialog('Search for Player', {
+    local input = lib.inputDialog(locale('cl_search_player'), {
         { 
             type = 'input', 
-            label = 'Player Name or Citizen ID', 
-            description = 'Enter first name, last name, or citizen ID',
+            label = locale('cl_search_input'), 
+            description = locale('cl_search_hint'),
             required = true,
             min = 3
         }
@@ -271,12 +325,11 @@ RegisterNetEvent('rsg-telegram:client:SendToAnyPlayer', function()
     
     local searchTerm = input[1]
     
-    -- Search for players in database
     RSGCore.Functions.TriggerCallback('rsg-telegram:server:SearchPlayers', function(players)
         if not players or #players == 0 then
             lib.notify({ 
-                title = "No Results", 
-                description = "No players found matching '"..searchTerm.."'", 
+                title = locale("cl_no_results"), 
+                description = locale("cl_no_results_desc") .. " '" .. searchTerm .. "'", 
                 type = 'error', 
                 duration = 5000 
             })
@@ -287,7 +340,7 @@ RegisterNetEvent('rsg-telegram:client:SendToAnyPlayer', function()
         
         for i = 1, #players do
             local player = players[i]
-            local status = player.online and "🟢 Online" or "🔴 Offline"
+            local status = player.online and "player " .. locale("cl_online") or "?? " .. locale("cl_offline")
             local content = {
                 value = player.citizenid, 
                 label = player.name .. " (" .. player.citizenid .. ") " .. status
@@ -295,29 +348,29 @@ RegisterNetEvent('rsg-telegram:client:SendToAnyPlayer', function()
             option[#option + 1] = content
         end
         
-        local sendButton = "Send Letter (Free)"
+        local sendButton = locale("cl_send_button_free")
         
         if Config.ChargePlayer then
             local lPrice = tonumber(Config.CostPerLetter)
-            sendButton = 'Send Letter ($'..lPrice..')'
+            sendButton = string.format(locale('cl_send_button_paid'), lPrice)
         end
         
-        local input2 = lib.inputDialog('Send Letter to Player', {
-            { type = 'select', options = option, required = true, label = 'Select Recipient' },
-            { type = 'input', label = 'Subject', required = true },
-            { type = 'textarea', label = 'Message', required = true, autosize = true },
+        local input2 = lib.inputDialog(locale('cl_send_letter_to'), {
+            { type = 'select', options = option, required = true, label = locale('cl_select_recipient') },
+            { type = 'input', label = locale("cl_title_08"), required = true },
+            { type = 'textarea', label = locale("cl_title_09"), required = true, autosize = true },
         })
         
         if not input2 then return end
         
-        local recipient = input2[1]  -- citizenid
+        local recipient = input2[1]
         local subject = input2[2]
         local message = input2[3]
         
         if recipient and subject and message then
             local alert = lib.alertDialog({
                 header = sendButton,
-                content = "Send this letter?\n\nIf recipient is online, they get it instantly.\nIf offline, they can retrieve it at the post office.",
+                content = locale("cl_send_confirm_any"),
                 centered = true,
                 cancel = true
             })
@@ -341,7 +394,6 @@ RegisterNetEvent('rsg-telegram:client:SendToAnyPlayer', function()
     end, searchTerm)
 end)
 
-
 RegisterNetEvent('rsg-telegram:client:WriteMessagePostOffice', function()
     RSGCore.Functions.TriggerCallback('rsg-telegram:server:GetPlayersPostOffice', function(players)
         local option = {}
@@ -359,11 +411,11 @@ RegisterNetEvent('rsg-telegram:client:WriteMessagePostOffice', function()
 
             if Config.ChargePlayer then
                 local lPrice = tonumber(Config.CostPerLetter)
-                sendButton = locale('cl_send_button_paid') ..' $'..lPrice
+                sendButton = string.format(locale('cl_send_button_paid'), lPrice)
             end
 
             local input = lib.inputDialog(locale('cl_send_message_header'), {
-                { type = 'select', options = option, required = true, default = 'Recipient' },
+                { type = 'select', options = option, required = true, label = locale('cl_recipient') },
                 { type = 'input', label = locale("cl_title_08"), required = true },
                 { type = 'textarea', label = locale("cl_title_09"), required = true, autosize = true },
             })
@@ -396,19 +448,19 @@ RegisterNetEvent('rsg-telegram:client:WriteMessagePostOffice', function()
     end)
 end)
 
--- Prompt Handling
 local function Prompts()
     if not PromptHasHoldModeCompleted(birdPrompt) then return end
 
     local ped = PlayerPedId()
 
     if destination < 3 and IsPedOnMount(ped) or IsPedOnVehicle(ped) then
-        lib.notify({ title = locale("title_11"), description = locale('cl_player_on_horse'), type = 'error', duration = 7000 })
+        lib.notify({ title = locale("cl_title_11"), description = locale('cl_player_on_horse'), type = 'error', duration = 7000 })
         Wait(3000)
         return
     end
 
-    TriggerEvent("rsg-telegram:client:ReadMessages")
+    -- REMOVED: TriggerEvent("rsg-telegram:client:ReadMessages") 
+    -- The letter is already being added to inventory, no need to open menu
 
     TriggerServerEvent('rsg-telegram:server:DeliverySuccess', sID, tPName)
 
@@ -486,7 +538,7 @@ local SpawnBirdPost = function(posX, posY, posZ, heading, rfar, isIncoming)
 
     Wait(2000)
 
-    local blipname = isIncoming and "Incoming Bird Post" or "Outgoing Bird Post"
+    local blipname = isIncoming and "Incoming " .. locale("cl_prompt_desc") or "Outgoing " .. locale("cl_prompt_desc")
     local bliphash = -1749618580
 
     birdBlip = Citizen.InvokeNative(0x23F74C2FDA6E7C61, bliphash, cuteBird)
@@ -502,7 +554,6 @@ local SpawnBirdPost = function(posX, posY, posZ, heading, rfar, isIncoming)
     SetBlipScale(birdBlip, 0.8)
 end
 
-
 CreateThread(function()
     while true do
         Wait(500)
@@ -514,7 +565,7 @@ CreateThread(function()
             local distance = #(playerCoords - birdCoords)
             
             if not DoesBlipExist(birdBlip) then
-                local blipname = LocalPlayer.state.telegramIsBirdPostApproaching and "Incoming Bird Post" or "Outgoing Bird Post"
+                local blipname = LocalPlayer.state.telegramIsBirdPostApproaching and "Incoming " .. locale("cl_prompt_desc") or "Outgoing " .. locale("cl_prompt_desc")
                 birdBlip = Citizen.InvokeNative(0x23F74C2FDA6E7C61, -1749618580, cuteBird)
                 Citizen.InvokeNative(0x9CB1A1623062F402, birdBlip, blipname)
                 SetBlipScale(birdBlip, 0.8)
@@ -526,7 +577,6 @@ CreateThread(function()
         end
     end
 end)
-
 
 CreateThread(function()
     BirdPrompt()
@@ -567,7 +617,7 @@ AddEventHandler('rsg-telegram:client:ReceiveMessage', function(SsID, StPName, le
 
         if insideBuilding ~= 0 then
             if not buildingNotified then
-                lib.notify({ title = "Bird Post", description = "The bird cannot find you inside. Go outside!", type = 'error', duration = 7000 })
+                lib.notify({ title = locale("cl_prompt_desc"), description = locale("cl_bird_cant_find"), type = 'error', duration = 7000 })
                 buildingNotified = true
             end
             isBirdCanSpawn = false
@@ -591,9 +641,9 @@ AddEventHandler('rsg-telegram:client:ReceiveMessage', function(SsID, StPName, le
 
             if destination < 100 and not notified then
                 notified = true
-                lib.notify({ title = "Bird Post", description = "A bird is approaching with a letter!", type = 'info', duration = 7000 })
+                lib.notify({ title = locale("cl_prompt_desc"), description = locale("cl_bird_approaching"), type = 'info', duration = 7000 })
                 Wait(5000)
-                lib.notify({ title = "Bird Post", description = "Wait for the bird to land...", type = 'info', duration = 7000 })
+                lib.notify({ title = locale("cl_prompt_desc"), description = locale("cl_wait_for_bird"), type = 'info', duration = 7000 })
             end
 
             if destination <= 10 and not freezedPlayer then
@@ -619,7 +669,6 @@ AddEventHandler('rsg-telegram:client:ReceiveMessage', function(SsID, StPName, le
                 ClearPedSecondaryTask(ped)
                 FreezeEntityPosition(ped, false)
                 SetEntityInvincible(ped, true)
-                ---TaskStartScenarioInPlace(ped, GetHashKey('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, false, false)
                 
                 local Attach = GetBirdAttachConfig()
 
@@ -701,9 +750,9 @@ AddEventHandler('rsg-telegram:client:ReceiveMessage', function(SsID, StPName, le
         end
 
         if birdTime == 0 and cuteBird ~= nil and notified then
-            lib.notify({ title = "Delivery Failed", description = "The bird couldn't deliver the letter", type = 'error', duration = 7000 })
+            lib.notify({ title = locale("cl_title_11"), description = locale("cl_delivery_fail1"), type = 'error', duration = 7000 })
             Wait(3000)
-            lib.notify({ title = "Delivery Failed", description = "The letter will be waiting at the post office", type = 'error', duration = 7000 })
+            lib.notify({ title = locale("cl_title_11"), description = locale("cl_delivery_fail2"), type = 'error', duration = 7000 })
             
             TriggerServerEvent('rsg-telegram:server:SaveFailedDelivery', letterData)
             
@@ -722,21 +771,19 @@ AddEventHandler('rsg-telegram:client:ReceiveMessage', function(SsID, StPName, le
     end
 end)
 
-
-
 RegisterNetEvent('rsg-telegram:client:WriteMessage', function()
     local selectionMenu = {
         {
-            title = "Online Players (Bird Delivery)",
+            title = locale("cl_online_players_bird"),
             icon = "fa-solid fa-dove",
-            description = "Send via bird - immersive delivery directly to player",
+            description = locale("cl_bird_post_bird"),
             event = "rsg-telegram:client:SendToOnlinePlayers",
             args = {}
         },
         {
-            title = "Address Book (Post Office)",
+            title = locale("cl_addressbook_post"),
             icon = "fa-solid fa-address-book", 
-            description = "Send to saved contacts - stored at post office",
+            description = locale("cl_bird_post_office"),
             event = "rsg-telegram:client:SendToAddressBookViaBird",
             args = {}
         }
@@ -744,7 +791,7 @@ RegisterNetEvent('rsg-telegram:client:WriteMessage', function()
     
     lib.registerContext({
         id = "send_message_selection",
-        title = "Send Bird Post",
+        title = locale("cl_send_bird_post"),
         options = selectionMenu
     })
     lib.showContext("send_message_selection")
@@ -767,11 +814,11 @@ RegisterNetEvent('rsg-telegram:client:SendToAddressBookViaBird', function()
 
             if Config.ChargePlayer then
                 local lPrice = tonumber(Config.CostPerLetter)
-                sendButton = locale('cl_send_button_paid') ..' $'..lPrice
+                sendButton = string.format(locale('cl_send_button_paid'), lPrice)
             end
 
             local input = lib.inputDialog(locale('cl_send_message_header'), {
-                { type = 'select', options = option, required = true, default = 'Recipient' },
+                { type = 'select', options = option, required = true, label = locale('cl_recipient') },
                 { type = 'input', label = locale("cl_title_08"), required = true },
                 { type = 'textarea', label = locale("cl_title_09"), required = true, autosize = true },
             })
@@ -784,7 +831,7 @@ RegisterNetEvent('rsg-telegram:client:SendToAddressBookViaBird', function()
             if recipient and subject and message then
                 local alert = lib.alertDialog({
                     header = sendButton,
-                    content = "Send this letter?\n\nIf recipient is online, they'll get it via bird.\nIf offline, it will be stored at post office.",
+                    content = locale("cl_send_confirm_addressbook"),
                     centered = true,
                     cancel = true
                 })
@@ -803,7 +850,6 @@ RegisterNetEvent('rsg-telegram:client:SendToAddressBookViaBird', function()
         end
     end)
 end)
-
 
 RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
     RSGCore.Functions.TriggerCallback('rsg-telegram:server:GetPlayers', function(players)
@@ -883,7 +929,8 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
             local sendButton = locale("cl_send_button_free")
 
             if Config.ChargePlayer then
-                sendButton = locale("cl_send_button_paid", {lPrice = tonumber(Config.CostPerLetter)})
+                local lPrice = tonumber(Config.CostPerLetter)
+                sendButton = string.format(locale('cl_send_button_paid'), lPrice)
             end
 
             for i = 1, #players do
@@ -893,7 +940,7 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
             end
 
             local input = lib.inputDialog(locale('cl_send_message_header'), {
-                { type = 'select', options = option, required = true, default = 'Recipient' },
+                { type = 'select', options = option, required = true, label = locale('cl_recipient') },
                 {type = 'input', label = locale("cl_title_08"), required = true},
                 {type = 'input', label = locale("cl_title_09"), required = true},
             })
@@ -1013,33 +1060,30 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
     end)
 end)
 
-
 RegisterNetEvent('rsg-telegram:client:ReadLetter')
 AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
-   
     TriggerServerEvent('rsg-telegram:server:MarkLetterRead', slot)
     
-   
     local letterContent = string.format(
-        "**From:** %s  \n" ..
-        "**To:** %s  \n" ..
-        "**Date:** %s  \n\n" ..
+        "**%s:** %s  \n" ..
+        "**%s:** %s  \n" ..
+        "**%s:** %s  \n\n" ..
         "---\n\n" ..
         "%s\n\n" ..
         "---",
-        letterData.sender or "Unknown",
-        letterData.recipient or "You",
-        letterData.date or "Unknown",
-        letterData.message or "The letter is blank"
+        locale("cl_from"), letterData.sender or "Unknown",
+        locale("cl_to"), letterData.recipient or "You",
+        locale("cl_date"), letterData.date or "Unknown",
+        letterData.message or locale("cl_letter_blank")
     )
 
     local choice = lib.alertDialog({
-        header = '📨 ' .. (letterData.subject or "Letter"),
+        header = '?? ' .. (letterData.subject or "Letter"),
         content = letterContent,
         centered = true,
         cancel = true,
         labels = {
-            confirm = 'Letter Actions',
+            confirm = locale('cl_letter_actions'),
             cancel = 'Close'
         }
     })
@@ -1047,43 +1091,43 @@ AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
     if choice == 'confirm' then
         local actionOptions = {
             {
-                title = "Read Again",
+                title = locale("cl_read_again"),
                 icon = 'fa-solid fa-envelope-open',
                 iconColor = 'blue',
-                description = "Open the letter again",
+                description = locale("cl_read_again_desc"),
                 onSelect = function()
                     TriggerEvent('rsg-telegram:client:ReadLetter', letterData, slot)
                 end
             },
             {
-                title = "Copy Message",
+                title = locale("cl_copy_message"),
                 icon = 'fa-solid fa-copy',
                 iconColor = 'green',
-                description = "Copy message text to clipboard",
+                description = locale("cl_copy_message_desc"),
                 onSelect = function()
                     lib.setClipboard(letterData.message)
                     lib.notify({ 
-                        title = "Copied", 
-                        description = "Message copied to clipboard", 
+                        title = locale("cl_copied"), 
+                        description = locale("cl_copied_desc"), 
                         type = 'success', 
                         duration = 3000 
                     })
                 end
             },
             {
-                title = "Burn Letter",
+                title = locale("cl_burn_letter"),
                 icon = 'fa-solid fa-fire',
                 iconColor = 'red',
-                description = "Destroy this letter permanently",
+                description = locale("cl_burn_letter_desc"),
                 onSelect = function()
                     local alert = lib.alertDialog({
-                        header = 'Burn Letter?',
-                        content = 'Are you sure you want to destroy this letter?\n\nThis cannot be undone.',
+                        header = locale('cl_burn_confirm'),
+                        content = locale('cl_burn_confirm_desc'),
                         centered = true,
                         cancel = true,
                         labels = {
-                            confirm = 'Burn It',
-                            cancel = 'Keep It'
+                            confirm = locale('cl_burn_it'),
+                            cancel = locale('cl_keep_it')
                         }
                     })
                     if alert == 'confirm' then
@@ -1092,14 +1136,14 @@ AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
                 end
             },
             {
-                title = "Keep Letter",
+                title = locale("cl_keep_letter"),
                 icon = 'fa-solid fa-hand-holding',
                 iconColor = 'yellow',
-                description = "Store the letter in your inventory",
+                description = locale("cl_keep_letter_desc"),
                 onSelect = function()
                     lib.notify({ 
-                        title = "Letter Kept", 
-                        description = "The letter remains in your inventory", 
+                        title = locale("cl_letter_kept"), 
+                        description = locale("cl_letter_kept_desc"), 
                         type = 'info', 
                         duration = 3000 
                     })
@@ -1109,7 +1153,7 @@ AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
 
         lib.registerContext({
             id = 'letter_actions',
-            title = 'Letter Actions',
+            title = locale('cl_letter_actions'),
             options = actionOptions
         })
         lib.showContext('letter_actions')
@@ -1121,15 +1165,14 @@ AddEventHandler('rsg-telegram:client:ReadMessages', function()
     TriggerServerEvent('rsg-telegram:server:CheckInbox')
 end)
 
-
 RegisterNetEvent('rsg-telegram:client:InboxList')
 AddEventHandler('rsg-telegram:client:InboxList', function(data)
     local messages = data.list
     
     if not messages or #messages == 0 then
         lib.notify({ 
-            title = "Post Office", 
-            description = "No messages waiting for you", 
+            title = locale("cl_title_03"), 
+            description = locale("cl_no_messages"), 
             type = 'info', 
             duration = 5000 
         })
@@ -1141,18 +1184,18 @@ AddEventHandler('rsg-telegram:client:InboxList', function(data)
     for i, msg in ipairs(messages) do
         table.insert(options, {
             title = msg.subject,
-            description = "From: " .. msg.sendername .. " | " .. msg.sentDate,
+            description = locale("cl_from") .. ": " .. msg.sendername .. " | " .. msg.sentDate,
             icon = 'fa-solid fa-envelope',
             iconColor = 'yellow',
             onSelect = function()
                 local alert = lib.alertDialog({
-                    header = 'Claim Letter?',
-                    content = 'This will add the letter to your inventory.\n\nFrom: **'..msg.sendername..'**\nSubject: **'..msg.subject..'**',
+                    header = locale('cl_claim_letter'),
+                    content = locale('cl_claim_letter_desc') .. '\n\n' .. locale('cl_from') .. ': **'..msg.sendername..'**\n' .. locale('cl_title_08') .. ': **'..msg.subject..'**',
                     centered = true,
                     cancel = true,
                     labels = {
-                        confirm = 'Claim Letter',
-                        cancel = 'Leave It'
+                        confirm = locale('cl_claim'),
+                        cancel = locale('cl_leave_it')
                     }
                 })
                 if alert == 'confirm' then
@@ -1160,27 +1203,27 @@ AddEventHandler('rsg-telegram:client:InboxList', function(data)
                 end
             end,
             metadata = {
-                {label = 'From', value = msg.sendername},
-                {label = 'Date', value = msg.sentDate}
+                {label = locale('cl_from'), value = msg.sendername},
+                {label = locale('cl_date'), value = msg.sentDate}
             }
         })
     end
 
     if #messages > 0 then
         table.insert(options, {
-            title = "───────────────",
+            title = "---------------",
             disabled = true
         })
 
         table.insert(options, {
-            title = "Delete All Messages",
+            title = locale("cl_delete_all"),
             icon = 'fa-solid fa-trash',
             iconColor = 'red',
-            description = "Permanently delete all post office messages",
+            description = locale("cl_delete_all_desc"),
             onSelect = function()
                 local alert = lib.alertDialog({
-                    header = 'Delete All?',
-                    content = 'This will delete all ' .. #messages .. ' messages permanently.',
+                    header = locale('cl_delete_all_confirm'),
+                    content = string.format(locale('cl_delete_all_confirm_desc'), #messages),
                     centered = true,
                     cancel = true
                 })
@@ -1190,8 +1233,8 @@ AddEventHandler('rsg-telegram:client:InboxList', function(data)
                         TriggerServerEvent('rsg-telegram:server:DeleteMessage', msg.id, true)
                     end
                     lib.notify({ 
-                        title = "Success", 
-                        description = count .. " messages deleted", 
+                        title = locale("cl_success"), 
+                        description = count .. " " .. locale("cl_messages_deleted"), 
                         type = 'success',
                         duration = 3000
                     })
@@ -1204,7 +1247,7 @@ AddEventHandler('rsg-telegram:client:InboxList', function(data)
 
     lib.registerContext({
         id = 'telegram_inbox',
-        title = '📬 Post Office Messages (' .. #messages .. ')',
+        title = '?? ' .. locale('cl_post_office_inbox') .. ' (' .. #messages .. ')',
         options = options
     })
     lib.showContext('telegram_inbox')
@@ -1335,7 +1378,7 @@ RegisterNetEvent('rsg-telegram:client:RemovePersonMenu', function()
             end
 
             local input = lib.inputDialog(locale("cl_title_35"), {
-                { type = 'select', options = option, required = true, default = 'Recipient' }
+                { type = 'select', options = option, required = true, label = locale('cl_recipient') }
             })
             if not input then return end
 
