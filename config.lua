@@ -4,7 +4,19 @@ Config.BirdAttach = {
     ["A_C_Hawk_01"] = {
         Male = {296, 0.19, 0.01, 0.27, 0.0, 0.0, 0.0},
         Female = {363, 0.12, -0.02, 0.27, 0.0, 0.0, 0.0}
-    }
+    },
+    ["A_C_Eagle_01"] = {
+        Male = {296, 0.19, 0.01, 0.27, 0.0, 0.0, 0.0},
+        Female = {363, 0.12, -0.02, 0.27, 0.0, 0.0, 0.0}
+    },
+    ["A_C_Crow_01"] = {
+        Male = {296, 0.15, 0.01, 0.25, 0.0, 0.0, 0.0},
+        Female = {363, 0.10, -0.02, 0.25, 0.0, 0.0, 0.0}
+    },
+    ["A_C_Vulture_01"] = {
+        Male = {296, 0.20, 0.02, 0.28, 0.0, 0.0, 0.0},
+        Female = {363, 0.13, -0.01, 0.28, 0.0, 0.0, 0.0}
+    },
 }
 
 -- General Settings
@@ -14,7 +26,7 @@ Config.ChargePlayer    = true -- Whether to charge the player when sending a let
 Config.CostPerLetter   = 0.50 -- Cost for sending a letter
 
 -- Bird Post settings
-Config.BirdModel        = 'A_C_Eagle_01' -- Bird model to use
+Config.BirdModel        = 'A_C_Vulture_01' -- Bird model to use
 Config.AutoResurrect    = true -- Auto resurrect the bird when it's died while sending letters
 Config.BirdArrivalDelay = 20000 -- Set the bird to arrives after 20 secs
 Config.BirdTimeout      = 180 -- When timeout reached, the bird will fail to deliver the letter
