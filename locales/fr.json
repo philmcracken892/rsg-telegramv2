@@ -40,6 +40,7 @@
     "cl_title_35": "Supprimer une Personne",
     "cl_title_36": "Erreur",
     "cl_title_37": "Vous devez ajouter des personnes à votre carnet d'adresses",
+    "cl_cannot_call_bird_inside": "Vous ne pouvez pas appeler l'oiseau depuis l'intérieur d'un bâtiment. Sortez dehors!",
     "cl_send_online": "Envoyer aux Joueurs en Ligne",
     "cl_send_online_desc": "Envoyer aux joueurs en ligne - stocké au bureau de poste pour récupération",
     "cl_send_any": "Envoyer à N'importe Quel Joueur",
