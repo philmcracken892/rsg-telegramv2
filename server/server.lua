@@ -8,6 +8,24 @@ RSGCore.Functions.CreateUseableItem('birdpost', function(source)
 	
 end)
 
+RSGCore.Functions.CreateCallback('rsg-telegram:server:GetPlayers', function(source, cb)
+    local players = {}
+    
+    for _, v in pairs(RSGCore.Functions.GetPlayers()) do
+        local Player = RSGCore.Functions.GetPlayer(v)
+        if Player then
+            local charinfo = Player.PlayerData.charinfo
+            local fullName = string.format("%s %s", charinfo.firstname, charinfo.lastname)
+            table.insert(players, {
+                value = v,
+                label = string.format("[%d] %s", v, fullName)
+            })
+        end
+    end
+    
+    cb(players)
+end)
+
 -- Delivery Success
 RegisterNetEvent('rsg-telegram:server:DeliverySuccess')
 AddEventHandler('rsg-telegram:server:DeliverySuccess', function(sID, tPName)
