@@ -581,7 +581,7 @@ end)
 
 
 local function GetPlayers(callback)
-    RSGCore.Functions.TriggerCallback('rsg-lawman:server:GetPlayers', function(players)
+    RSGCore.Functions.TriggerCallback('rsg-telegram:server:GetPlayers', function(players)
         
         cachedPlayers = players
         
