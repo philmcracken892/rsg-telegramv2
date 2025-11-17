@@ -155,15 +155,22 @@ RegisterNetEvent('rsg-telegram:client:ChooseSendMethod', function()
     local SendMethodMenu = {
         {
             title = "Send to Online Players",
-            icon = "fa-solid fa-users",
-            description = "Send directly to players currently online (instant delivery)",
+            icon = "fa-solid fa-envelope",
+            description = "Send to online players - stored at post office for retrieval",
             event = "rsg-telegram:client:SendToOnlinePlayersFromPostOffice",
+            args = {}
+        },
+        {
+            title = "Send to Any Player",
+            icon = "fa-solid fa-search",
+            description = "Search for any player - letter stored at post office",
+            event = "rsg-telegram:client:SendToAnyPlayer",
             args = {}
         },
         {
             title = "Send to Address Book",
             icon = "fa-solid fa-address-book",
-            description = "Send to saved contacts (will be stored if offline)",
+            description = "Send to saved contacts - stored at post office",
             event = "rsg-telegram:client:WriteMessagePostOffice",
             args = {}
         },
@@ -246,6 +253,92 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayersFromPostOffice', functi
             lib.notify({ title = "Error", description = "No online players found", type = 'error', duration = 7000 })
         end
     end)
+end)
+
+-- Send to Any Player (search database for online/offline players)
+RegisterNetEvent('rsg-telegram:client:SendToAnyPlayer', function()
+    local input = lib.inputDialog('Search for Player', {
+        { 
+            type = 'input', 
+            label = 'Player Name or Citizen ID', 
+            description = 'Enter first name, last name, or citizen ID',
+            required = true,
+            min = 3
+        }
+    })
+    
+    if not input then return end
+    
+    local searchTerm = input[1]
+    
+    -- Search for players in database
+    RSGCore.Functions.TriggerCallback('rsg-telegram:server:SearchPlayers', function(players)
+        if not players or #players == 0 then
+            lib.notify({ 
+                title = "No Results", 
+                description = "No players found matching '"..searchTerm.."'", 
+                type = 'error', 
+                duration = 5000 
+            })
+            return
+        end
+        
+        local option = {}
+        
+        for i = 1, #players do
+            local player = players[i]
+            local status = player.online and "🟢 Online" or "🔴 Offline"
+            local content = {
+                value = player.citizenid, 
+                label = player.name .. " (" .. player.citizenid .. ") " .. status
+            }
+            option[#option + 1] = content
+        end
+        
+        local sendButton = "Send Letter (Free)"
+        
+        if Config.ChargePlayer then
+            local lPrice = tonumber(Config.CostPerLetter)
+            sendButton = 'Send Letter ($'..lPrice..')'
+        end
+        
+        local input2 = lib.inputDialog('Send Letter to Player', {
+            { type = 'select', options = option, required = true, label = 'Select Recipient' },
+            { type = 'input', label = 'Subject', required = true },
+            { type = 'textarea', label = 'Message', required = true, autosize = true },
+        })
+        
+        if not input2 then return end
+        
+        local recipient = input2[1]  -- citizenid
+        local subject = input2[2]
+        local message = input2[3]
+        
+        if recipient and subject and message then
+            local alert = lib.alertDialog({
+                header = sendButton,
+                content = "Send this letter?\n\nIf recipient is online, they get it instantly.\nIf offline, they can retrieve it at the post office.",
+                centered = true,
+                cancel = true
+            })
+            
+            if alert == 'confirm' then
+                local pID = PlayerId()
+                local senderID = GetPlayerServerId(pID)
+                local playerData = RSGCore.Functions.GetPlayerData()
+                local senderfullname = playerData.charinfo.firstname..' '..playerData.charinfo.lastname
+                local sendertelegram = playerData.citizenid
+                
+                TriggerServerEvent('rsg-telegram:server:SendToSearchedPlayer', 
+                    sendertelegram, 
+                    senderfullname, 
+                    recipient,
+                    subject, 
+                    message
+                )
+            end
+        end
+    end, searchTerm)
 end)
 
 
@@ -409,7 +502,7 @@ local SpawnBirdPost = function(posX, posY, posZ, heading, rfar, isIncoming)
     SetBlipScale(birdBlip, 0.8)
 end
 
--- Keep blip visible and update during flight
+
 CreateThread(function()
     while true do
         Wait(500)
@@ -434,7 +527,7 @@ CreateThread(function()
     end
 end)
 
--- Prompt Thread
+
 CreateThread(function()
     BirdPrompt()
 
@@ -526,7 +619,7 @@ AddEventHandler('rsg-telegram:client:ReceiveMessage', function(SsID, StPName, le
                 ClearPedSecondaryTask(ped)
                 FreezeEntityPosition(ped, false)
                 SetEntityInvincible(ped, true)
-                TaskStartScenarioInPlace(ped, GetHashKey('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, false, false)
+                ---TaskStartScenarioInPlace(ped, GetHashKey('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, false, false)
                 
                 local Attach = GetBirdAttachConfig()
 
@@ -629,20 +722,21 @@ AddEventHandler('rsg-telegram:client:ReceiveMessage', function(SsID, StPName, le
     end
 end)
 
--- Write the Message (using bird post item)
+
+
 RegisterNetEvent('rsg-telegram:client:WriteMessage', function()
     local selectionMenu = {
         {
-            title = "Online Players",
-            icon = "fa-solid fa-users",
-            description = "Send message to currently online players using a bird",
+            title = "Online Players (Bird Delivery)",
+            icon = "fa-solid fa-dove",
+            description = "Send via bird - immersive delivery directly to player",
             event = "rsg-telegram:client:SendToOnlinePlayers",
             args = {}
         },
         {
-            title = "Address Book",
+            title = "Address Book (Post Office)",
             icon = "fa-solid fa-address-book", 
-            description = "Send message to saved contacts (stored at post office)",
+            description = "Send to saved contacts - stored at post office",
             event = "rsg-telegram:client:SendToAddressBookViaBird",
             args = {}
         }
@@ -650,13 +744,12 @@ RegisterNetEvent('rsg-telegram:client:WriteMessage', function()
     
     lib.registerContext({
         id = "send_message_selection",
-        title = "Send Message",
+        title = "Send Bird Post",
         options = selectionMenu
     })
     lib.showContext("send_message_selection")
 end)
 
--- Send to Address Book via Bird
 RegisterNetEvent('rsg-telegram:client:SendToAddressBookViaBird', function()
     RSGCore.Functions.TriggerCallback('rsg-telegram:server:GetPlayersPostOffice', function(players)
         local option = {}
@@ -711,7 +804,7 @@ RegisterNetEvent('rsg-telegram:client:SendToAddressBookViaBird', function()
     end)
 end)
 
--- Send to Online Players (using bird post item with bird animation)
+
 RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
     RSGCore.Functions.TriggerCallback('rsg-telegram:server:GetPlayers', function(players)
         if players ~= nil then
@@ -920,14 +1013,13 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
     end)
 end)
 
--- Read Letter Item
+
 RegisterNetEvent('rsg-telegram:client:ReadLetter')
 AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
+   
     TriggerServerEvent('rsg-telegram:server:MarkLetterRead', slot)
     
-    Wait(500)
-    UpdateMailCount()
-    
+   
     local letterContent = string.format(
         "**From:** %s  \n" ..
         "**To:** %s  \n" ..
@@ -996,8 +1088,6 @@ AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
                     })
                     if alert == 'confirm' then
                         TriggerServerEvent('rsg-telegram:server:DestroyLetter', slot)
-                        Wait(500)
-                        UpdateMailCount()
                     end
                 end
             },
@@ -1026,13 +1116,12 @@ AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
     end
 end)
 
--- Read the Message
 RegisterNetEvent('rsg-telegram:client:ReadMessages')
 AddEventHandler('rsg-telegram:client:ReadMessages', function()
     TriggerServerEvent('rsg-telegram:server:CheckInbox')
 end)
 
--- Show Messages List
+
 RegisterNetEvent('rsg-telegram:client:InboxList')
 AddEventHandler('rsg-telegram:client:InboxList', function(data)
     local messages = data.list
