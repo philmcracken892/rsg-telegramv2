@@ -23,9 +23,9 @@ local cachedPlayers = nil
 local freezedPlayer = false
 local currentMessageId = nil
 
--- Set locale from config or player preference
+
 CreateThread(function()
-    Wait(1000) -- Wait for player to be ready
+    Wait(1000) 
     
     local savedLocale = GetResourceKvpString('telegram_language')
     
@@ -42,7 +42,7 @@ CreateThread(function()
     end
 end)
 
--- Language change event
+
 RegisterNetEvent('rsg-telegram:client:changeLanguage', function(lang)
     lib.setLocale(lang)
     SetResourceKvp('telegram_language', lang)
@@ -55,7 +55,7 @@ RegisterNetEvent('rsg-telegram:client:changeLanguage', function(lang)
     })
 end)
 
--- Language menu
+
 RegisterNetEvent('rsg-telegram:client:openLanguageMenu', function()
     if not Config.AllowPlayerLanguageChange then
         lib.notify({
@@ -309,7 +309,7 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayersFromPostOffice', functi
     end)
 end)
 
--- Send to Any Player (search database for online/offline players)
+
 RegisterNetEvent('rsg-telegram:client:SendToAnyPlayer', function()
     local input = lib.inputDialog(locale('cl_search_player'), {
         { 
@@ -459,8 +459,7 @@ local function Prompts()
         return
     end
 
-    -- REMOVED: TriggerEvent("rsg-telegram:client:ReadMessages") 
-    -- The letter is already being added to inventory, no need to open menu
+    
 
     TriggerServerEvent('rsg-telegram:server:DeliverySuccess', sID, tPName)
 
@@ -870,9 +869,16 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
                 return
             end
 
+            -- Check if player is inside a building
+            local insideBuilding = GetInteriorFromEntity(ped)
+            if insideBuilding ~= 0 then
+                lib.notify({ title = locale("cl_title_11"), description = locale('cl_cannot_call_bird_inside'), type = 'error', duration = 7000 })
+                return
+            end
+
             ClearPedTasks(ped)
             ClearPedSecondaryTask(ped)
-            FreezeEntityPosition(ped, true)
+            FreezeEntityPosition(ped, false)
             SetEntityInvincible(ped, true)
 
             playerCoords = GetEntityCoords(ped)
@@ -893,6 +899,8 @@ RegisterNetEvent('rsg-telegram:client:SendToOnlinePlayers', function()
             Wait(100)
             TaskFlyToCoord(cuteBird, 1.0, playerCoords.x, playerCoords.y, playerCoords.z + 0.5, 1, 0)
             TaskStartScenarioInPlace(ped, GetHashKey('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, false, false)
+			Citizen.Wait(7000)
+			ClearPedTasks(ped)
 
             Citizen.CreateThread(function()
                 local pc = GetEntityCoords(PlayerPedId())
@@ -1078,7 +1086,7 @@ AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
     )
 
     local choice = lib.alertDialog({
-        header = '?? ' .. (letterData.subject or "Letter"),
+        header = 'ðŸ“¨ ' .. (letterData.subject or "Letter"),
         content = letterContent,
         centered = true,
         cancel = true,
@@ -1247,7 +1255,7 @@ AddEventHandler('rsg-telegram:client:InboxList', function(data)
 
     lib.registerContext({
         id = 'telegram_inbox',
-        title = '?? ' .. locale('cl_post_office_inbox') .. ' (' .. #messages .. ')',
+        title = 'ðŸ“‚ ' .. locale('cl_post_office_inbox') .. ' (' .. #messages .. ')',
         options = options
     })
     lib.showContext('telegram_inbox')
