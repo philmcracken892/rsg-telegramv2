@@ -1073,96 +1073,92 @@ AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
     TriggerServerEvent('rsg-telegram:server:MarkLetterRead', slot)
     
     local letterContent = string.format(
-        "**%s:** %s  \n" ..
-        "**%s:** %s  \n" ..
-        "**%s:** %s  \n\n" ..
-        "---\n\n" ..
+        "```\n" ..
+        "═══════════════════════════════════════════\n" ..
+        "               WESTERN UNION\n" ..
+        "                 TELEGRAM\n" ..
+        "════════════════════════════════════════════\n\n" ..
+        "FROM: %s\n" ..
+        "TO:   %s\n" ..
+        "DATE: %s\n\n" ..
+        "────────────────────────────────────────────\n\n" ..
         "%s\n\n" ..
-        "---",
-        locale("cl_from"), letterData.sender or "Unknown",
-        locale("cl_to"), letterData.recipient or "You",
-        locale("cl_date"), letterData.date or "Unknown",
+        "────────────────────────────────────────────\n" ..
+        "```",
+        string.upper(letterData.sender or "UNKNOWN"),
+        string.upper(letterData.recipient or "YOU"),
+        string.upper(letterData.date or "UNKNOWN"),
         letterData.message or locale("cl_letter_blank")
     )
 
     local choice = lib.alertDialog({
-        header = 'ðŸ“¨ ' .. (letterData.subject or "Letter"),
+        header = letterData.subject or "TELEGRAM",
         content = letterContent,
         centered = true,
         cancel = true,
         labels = {
-            confirm = locale('cl_letter_actions'),
-            cancel = 'Close'
+            confirm = 'ACTIONS',
+            cancel = 'CLOSE'
         }
     })
     
     if choice == 'confirm' then
-        local actionOptions = {
-            {
-                title = locale("cl_read_again"),
-                icon = 'fa-solid fa-envelope-open',
-                iconColor = 'blue',
-                description = locale("cl_read_again_desc"),
-                onSelect = function()
-                    TriggerEvent('rsg-telegram:client:ReadLetter', letterData, slot)
-                end
-            },
-            {
-                title = locale("cl_copy_message"),
-                icon = 'fa-solid fa-copy',
-                iconColor = 'green',
-                description = locale("cl_copy_message_desc"),
-                onSelect = function()
-                    lib.setClipboard(letterData.message)
-                    lib.notify({ 
-                        title = locale("cl_copied"), 
-                        description = locale("cl_copied_desc"), 
-                        type = 'success', 
-                        duration = 3000 
-                    })
-                end
-            },
-            {
-                title = locale("cl_burn_letter"),
-                icon = 'fa-solid fa-fire',
-                iconColor = 'red',
-                description = locale("cl_burn_letter_desc"),
-                onSelect = function()
-                    local alert = lib.alertDialog({
-                        header = locale('cl_burn_confirm'),
-                        content = locale('cl_burn_confirm_desc'),
-                        centered = true,
-                        cancel = true,
-                        labels = {
-                            confirm = locale('cl_burn_it'),
-                            cancel = locale('cl_keep_it')
-                        }
-                    })
-                    if alert == 'confirm' then
-                        TriggerServerEvent('rsg-telegram:server:DestroyLetter', slot)
-                    end
-                end
-            },
-            {
-                title = locale("cl_keep_letter"),
-                icon = 'fa-solid fa-hand-holding',
-                iconColor = 'yellow',
-                description = locale("cl_keep_letter_desc"),
-                onSelect = function()
-                    lib.notify({ 
-                        title = locale("cl_letter_kept"), 
-                        description = locale("cl_letter_kept_desc"), 
-                        type = 'info', 
-                        duration = 3000 
-                    })
-                end
-            }
-        }
-
         lib.registerContext({
             id = 'letter_actions',
-            title = locale('cl_letter_actions'),
-            options = actionOptions
+            title = 'TELEGRAM ACTIONS',
+            options = {
+                {
+                    title = locale("cl_read_again"),
+                    icon = 'fa-solid fa-envelope-open',
+                    iconColor = '#8B7355',
+                    onSelect = function()
+                        TriggerEvent('rsg-telegram:client:ReadLetter', letterData, slot)
+                    end
+                },
+                {
+                    title = locale("cl_copy_message"),
+                    icon = 'fa-solid fa-copy',
+                    iconColor = '#2C5F2D',
+                    onSelect = function()
+                        lib.setClipboard(letterData.message)
+                        lib.notify({ 
+                            title = 'MESSAGE COPIED', 
+                            type = 'success' 
+                        })
+                    end
+                },
+                {
+                    title = locale("cl_burn_letter"),
+                    icon = 'fa-solid fa-fire',
+                    iconColor = '#8B0000',
+                    onSelect = function()
+                        local alert = lib.alertDialog({
+                            header = 'DESTROY TELEGRAM',
+                            content = 'This action cannot be undone.',
+                            centered = true,
+                            cancel = true,
+                            labels = {
+                                confirm = 'DESTROY',
+                                cancel = 'CANCEL'
+                            }
+                        })
+                        if alert == 'confirm' then
+                            TriggerServerEvent('rsg-telegram:server:DestroyLetter', slot)
+                        end
+                    end
+                },
+                {
+                    title = locale("cl_keep_letter"),
+                    icon = 'fa-solid fa-archive',
+                    iconColor = '#DAA520',
+                    onSelect = function()
+                        lib.notify({ 
+                            title = 'TELEGRAM SAVED', 
+                            type = 'info' 
+                        })
+                    end
+                }
+            }
         })
         lib.showContext('letter_actions')
     end
