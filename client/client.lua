@@ -42,7 +42,45 @@ CreateThread(function()
     end
 end)
 
-
+-- Word Wrap Function
+local function WrapText(text, maxChars)
+    if not text then return "" end
+    
+    local lines = {}
+    local currentLine = ""
+    
+    -- Split by existing newlines first
+    for paragraph in text:gmatch("[^\r\n]+") do
+        local words = {}
+        for word in paragraph:gmatch("%S+") do
+            table.insert(words, word)
+        end
+        
+        currentLine = ""
+        for i, word in ipairs(words) do
+            local testLine = currentLine == "" and word or currentLine .. " " .. word
+            
+            if #testLine > maxChars then
+                if currentLine ~= "" then
+                    table.insert(lines, currentLine)
+                    currentLine = word
+                else
+                    -- Word itself is longer than maxChars, force break
+                    table.insert(lines, word)
+                    currentLine = ""
+                end
+            else
+                currentLine = testLine
+            end
+        end
+        
+        if currentLine ~= "" then
+            table.insert(lines, currentLine)
+        end
+    end
+    
+    return table.concat(lines, "\n")
+end
 RegisterNetEvent('rsg-telegram:client:changeLanguage', function(lang)
     lib.setLocale(lang)
     SetResourceKvp('telegram_language', lang)
@@ -1072,96 +1110,90 @@ RegisterNetEvent('rsg-telegram:client:ReadLetter')
 AddEventHandler('rsg-telegram:client:ReadLetter', function(letterData, slot)
     TriggerServerEvent('rsg-telegram:server:MarkLetterRead', slot)
     
-    local letterContent = string.format(
-        "```\n" ..
-        "═══════════════════════════════════════════\n" ..
-        "               WESTERN UNION\n" ..
-        "                 TELEGRAM\n" ..
-        "════════════════════════════════════════════\n\n" ..
-        "FROM: %s\n" ..
-        "TO:   %s\n" ..
-        "DATE: %s\n\n" ..
-        "────────────────────────────────────────────\n\n" ..
-        "%s\n\n" ..
-        "────────────────────────────────────────────\n" ..
-        "```",
-        string.upper(letterData.sender or "UNKNOWN"),
-        string.upper(letterData.recipient or "YOU"),
-        string.upper(letterData.date or "UNKNOWN"),
-        letterData.message or locale("cl_letter_blank")
-    )
-
-    local choice = lib.alertDialog({
-        header = letterData.subject or "TELEGRAM",
-        content = letterContent,
-        centered = true,
-        cancel = true,
-        labels = {
-            confirm = 'ACTIONS',
-            cancel = 'CLOSE'
+    -- Wrap message for readability
+    local wrappedMessage = WrapText(letterData.message or locale("cl_letter_blank"), 55)
+    
+    lib.registerContext({
+        id = 'read_letter',
+        title = '' .. (letterData.subject or "TELEGRAM"),
+        menu = 'telegram_inbox',
+        options = {
+            {
+                title = 'From: ' .. (letterData.sender or "UNKNOWN"),
+                description = 'Date: ' .. (letterData.date or "UNKNOWN"),
+                icon = 'fa-solid fa-user',
+                disabled = true
+            },
+            {
+                title = 'MESSAGE',
+                disabled = true
+            },
+            {
+                title = wrappedMessage,
+                disabled = true,
+                icon = 'fa-solid fa-message'
+            },
+            {
+                title = 'ACTIONS',
+                disabled = true
+            },
+            {
+                title = locale("cl_copy_message"),
+                icon = 'fa-solid fa-copy',
+                iconColor = '#2C5F2D',
+                description = 'Copy message to clipboard',
+                onSelect = function()
+                    lib.setClipboard(letterData.message)
+                    lib.notify({ 
+                        title = 'MESSAGE COPIED', 
+                        type = 'success',
+                        duration = 3000
+                    })
+                end
+            },
+            {
+                title = locale("cl_keep_letter"),
+                icon = 'fa-solid fa-archive',
+                iconColor = '#DAA520',
+                description = 'Keep this letter safe',
+                onSelect = function()
+                    lib.notify({ 
+                        title = 'TELEGRAM SAVED', 
+                        description = 'Letter kept in your inventory',
+                        type = 'info',
+                        duration = 3000
+                    })
+                end
+            },
+            {
+                title = locale("cl_burn_letter"),
+                icon = 'fa-solid fa-fire',
+                iconColor = '#8B0000',
+                description = 'Destroy this letter permanently',
+                onSelect = function()
+                    local confirm = lib.alertDialog({
+                        header = 'DESTROY TELEGRAM',
+                        content = 'This action cannot be undone.',
+                        centered = true,
+                        cancel = true,
+                        labels = {
+                            confirm = 'DESTROY',
+                            cancel = 'CANCEL'
+                        }
+                    })
+                    if confirm == 'confirm' then
+                        TriggerServerEvent('rsg-telegram:server:DestroyLetter', slot)
+                        lib.notify({ 
+                            title = 'TELEGRAM DESTROYED', 
+                            type = 'error',
+                            duration = 3000
+                        })
+                    end
+                end
+            }
         }
     })
-    
-    if choice == 'confirm' then
-        lib.registerContext({
-            id = 'letter_actions',
-            title = 'TELEGRAM ACTIONS',
-            options = {
-                {
-                    title = locale("cl_read_again"),
-                    icon = 'fa-solid fa-envelope-open',
-                    iconColor = '#8B7355',
-                    onSelect = function()
-                        TriggerEvent('rsg-telegram:client:ReadLetter', letterData, slot)
-                    end
-                },
-                {
-                    title = locale("cl_copy_message"),
-                    icon = 'fa-solid fa-copy',
-                    iconColor = '#2C5F2D',
-                    onSelect = function()
-                        lib.setClipboard(letterData.message)
-                        lib.notify({ 
-                            title = 'MESSAGE COPIED', 
-                            type = 'success' 
-                        })
-                    end
-                },
-                {
-                    title = locale("cl_burn_letter"),
-                    icon = 'fa-solid fa-fire',
-                    iconColor = '#8B0000',
-                    onSelect = function()
-                        local alert = lib.alertDialog({
-                            header = 'DESTROY TELEGRAM',
-                            content = 'This action cannot be undone.',
-                            centered = true,
-                            cancel = true,
-                            labels = {
-                                confirm = 'DESTROY',
-                                cancel = 'CANCEL'
-                            }
-                        })
-                        if alert == 'confirm' then
-                            TriggerServerEvent('rsg-telegram:server:DestroyLetter', slot)
-                        end
-                    end
-                },
-                {
-                    title = locale("cl_keep_letter"),
-                    icon = 'fa-solid fa-archive',
-                    iconColor = '#DAA520',
-                    onSelect = function()
-                        lib.notify({ 
-                            title = 'TELEGRAM SAVED', 
-                            type = 'info' 
-                        })
-                    end
-                }
-            }
-        })
-        lib.showContext('letter_actions')
-    end
+    lib.showContext('read_letter')
 end)
 
 RegisterNetEvent('rsg-telegram:client:ReadMessages')
